@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Promar Sipariş & Teklif Platformu (Cloud)</title>
+    <meta name="apple-mobile-web-app-title" content="Promar Sipariş">
+    <title>Promar Sipariş & Teklif (V10)</title>
     
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2983/2983707.png">
 
@@ -56,8 +57,8 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- FIREBASE AYARLARI (BURAYI KENDİ PROJENİZE GÖRE DOLDURUN) ---
-        // Firebase Console -> Project Settings -> General -> Your Apps kısmından alabilirsiniz.
+        // --- FIREBASE AYARLARI ---
+        // Lütfen kendi Firebase Config bilgilerinizi buraya girin (API Key, Project ID vb.)
 const firebaseConfig = {
   apiKey: "AIzaSyDsgmQcL0FIKdZMVO1kljOud0AhiXzMQbQ",
   authDomain: "pricebook-2442c.firebaseapp.com",
@@ -68,16 +69,15 @@ const firebaseConfig = {
 };
 
 
-        // Firebase Başlatma (Hata önleyici kontrol ile)
         let db = null;
         try {
-            if (firebase.apps.length === 0) {
+            if (typeof firebase !== 'undefined' && firebase.apps.length === 0) {
                 firebase.initializeApp(firebaseConfig);
             }
-            db = firebase.firestore();
-        } catch (e) {
-            console.warn("Firebase başlatılamadı. Config ayarlarını kontrol edin.", e);
-        }
+            if (typeof firebase !== 'undefined') {
+                db = firebase.firestore();
+            }
+        } catch (e) { console.warn("Firebase başlatılamadı.", e); }
 
         // --- İKONLAR ---
         const IconWrapper = ({ children, size = 24, className = "", onClick }) => (
@@ -104,13 +104,14 @@ const firebaseConfig = {
         const Cloud = (props) => <IconWrapper {...props}><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></IconWrapper>;
         const Save = (props) => <IconWrapper {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></IconWrapper>;
         const Clock = (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></IconWrapper>;
+        const Phone = (props) => <IconWrapper {...props}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></IconWrapper>;
 
         function DealerPlatform() {
             const [dealers, setDealers] = useState([]);
             const [brands, setBrands] = useState([]);
             const [products, setProducts] = useState([]);
             const [isDataLoaded, setIsDataLoaded] = useState(false);
-            const [isLoadingData, setIsLoadingData] = useState(false); // Veri yükleniyor animasyonu
+            const [isLoadingData, setIsLoadingData] = useState(false);
 
             const [darkMode, setDarkMode] = useState(true);
             const [selectedDealer, setSelectedDealer] = useState(null);
@@ -143,10 +144,9 @@ const firebaseConfig = {
                 }
             }, [darkMode]);
 
-            // --- OTOMATİK VERİ YÜKLEME (AUTO LOAD) ---
+            // --- OTOMATİK VERİ YÜKLEME ---
             useEffect(() => {
                 const autoLoadExcel = async () => {
-                    // Önce local storage kontrol et
                     const storedDealers = localStorage.getItem('app_dealers');
                     if (storedDealers) {
                         try {
@@ -155,20 +155,18 @@ const firebaseConfig = {
                             setProducts(JSON.parse(localStorage.getItem('app_products')));
                             setIsDataLoaded(true);
                             return; 
-                        } catch (e) { console.log("Cache hatası, webden çekiliyor..."); }
+                        } catch (e) { console.log("Cache hatası."); }
                     }
 
-                    // Cache yoksa veya bozuksa GitHub/Localden çek
                     setIsLoadingData(true);
                     try {
-                        // "data.xlsx" dosyasını aynı dizinde ara
                         const response = await fetch('data.xlsx'); 
                         if (!response.ok) throw new Error("Dosya bulunamadı");
                         
                         const arrayBuffer = await response.arrayBuffer();
                         processExcel(arrayBuffer);
                     } catch (error) {
-                        console.log("Otomatik yükleme yapılamadı, manuel bekleniyor.", error);
+                        console.log("Otomatik yükleme yapılamadı.", error);
                     } finally {
                         setIsLoadingData(false);
                     }
@@ -211,6 +209,12 @@ const firebaseConfig = {
                 }
             };
 
+            const clearCart = () => {
+                if (confirm("Sepetinizdeki tüm ürünler silinecek. Emin misiniz?")) {
+                    setCart([]);
+                }
+            };
+
             const processImageUrl = (url) => {
                 if (!url) return '';
                 if (url.includes('onedrive.live.com')) {
@@ -221,6 +225,7 @@ const firebaseConfig = {
             };
 
             const getBrandName = (brandId) => {
+                if (!brandId) return '-';
                 const b = brands.find(brand => brand.id == brandId);
                 return b ? b.name : '-';
             };
@@ -233,9 +238,9 @@ const firebaseConfig = {
                 reader.readAsArrayBuffer(file);
             };
 
-            // --- FIREBASE İŞLEMLERİ ---
+            // --- FIREBASE İŞLEMLERİ (GÜNCELLENDİ: HATA ENGELLEYİCİ) ---
             const saveProposalToFirebase = async () => {
-                if (!db) { alert("Firebase bağlantısı yok! Lütfen config ayarlarını yapın."); return; }
+                if (!db) { alert("Firebase bağlantısı yok veya ayarlar hatalı!"); return; }
                 if (!customerInfo.name) { alert("Lütfen müşteri adı giriniz."); return; }
                 
                 setIsSaving(true);
@@ -259,19 +264,34 @@ const firebaseConfig = {
                 }
             };
 
+            // FIX: Index hatasını önlemek için orderBy kaldırıldı, Javascript ile sıralanıyor.
             const fetchProposalHistory = async () => {
-                if (!db) return;
+                if (!db) { alert("Geçmişi görüntülemek için Firebase ayarlarının yapılması gerekmektedir."); return; }
                 if (!selectedDealer) return;
 
-                const snapshot = await db.collection("proposals")
-                    .where("dealerId", "==", selectedDealer.id)
-                    .orderBy("createdAt", "desc")
-                    .limit(20)
-                    .get();
+                try {
+                    // Sadece dealerId'ye göre çekiyoruz (Index hatası vermemesi için)
+                    const snapshot = await db.collection("proposals")
+                        .where("dealerId", "==", selectedDealer.id)
+                        .get();
 
-                const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                setProposalHistory(list);
-                setShowHistory(true);
+                    if (snapshot.empty) {
+                        setProposalHistory([]);
+                        setShowHistory(true);
+                        return;
+                    }
+
+                    let list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    // Tarayıcı tarafında tarihe göre sırala (En yeni en üstte)
+                    list.sort((a, b) => new Date(b.date) - new Date(a.date));
+                    
+                    setProposalHistory(list);
+                    setShowHistory(true);
+                } catch (error) {
+                    console.error("Geçmiş çekilemedi:", error);
+                    alert("Geçmiş yüklenirken hata oluştu: " + error.message + "\nLütfen kuralları güncellediğinizden emin olun.");
+                }
             };
 
             const loadProposal = (proposal) => {
@@ -283,7 +303,6 @@ const firebaseConfig = {
                 }
             };
 
-            // ... Diğer yardımcı fonksiyonlar (Kur çekme, fiyat formatlama vs)
             const fetchTCMBRate = async () => {
                 setIsLoadingRate(true);
                 try {
@@ -295,6 +314,7 @@ const firebaseConfig = {
             useEffect(() => { fetchTCMBRate(); }, []);
 
             const formatPrice = (priceEur) => {
+                if (priceEur === undefined || priceEur === null) return '-';
                 const val = currency === 'EUR' ? priceEur : priceEur * exchangeRate;
                 return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: currency }).format(val);
             };
@@ -305,7 +325,6 @@ const firebaseConfig = {
                 return { subTotal, kdvAmount, finalTotal: subTotal + kdvAmount };
             };
 
-            // Yetki ve Filtreleme
             const visibleBrands = useMemo(() => {
                 if (!selectedDealer) return [];
                 if (!selectedDealer.allowedBrands) return brands;
@@ -387,7 +406,7 @@ const firebaseConfig = {
                     {/* HISTORY MODAL */}
                     {showHistory && (
                         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl w-full max-w-2xl border dark:border-gray-700 h-3/4 flex flex-col">
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl w-full max-w-2xl border dark:border-gray-700 h-3/4 flex flex-col animate-in fade-in zoom-in duration-200">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-xl font-bold dark:text-white flex items-center gap-2"><Clock /> Geçmiş Teklifler</h3>
                                     <button onClick={() => setShowHistory(false)}><X /></button>
@@ -395,14 +414,14 @@ const firebaseConfig = {
                                 <div className="flex-1 overflow-y-auto space-y-3">
                                     {proposalHistory.length === 0 ? <p className="text-center text-gray-500 mt-10">Kayıtlı teklif bulunamadı.</p> : 
                                      proposalHistory.map((prop, idx) => (
-                                        <div key={idx} onClick={() => loadProposal(prop)} className="p-4 border dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer flex justify-between items-center group">
+                                        <div key={idx} className="p-4 border dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 flex justify-between items-center group">
                                             <div>
                                                 <p className="font-bold">{prop.customer?.name || 'İsimsiz Müşteri'}</p>
                                                 <p className="text-xs text-gray-500">{new Date(prop.date).toLocaleString('tr-TR')}</p>
                                             </div>
-                                            <div className="text-right">
+                                            <div className="text-right flex items-center gap-2">
                                                 <p className="font-bold text-blue-600">{new Intl.NumberFormat('tr-TR', { style: 'currency', currency: prop.currency || 'EUR' }).format(prop.totalAmount)}</p>
-                                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded group-hover:bg-blue-600 group-hover:text-white transition">Yükle</span>
+                                                <button onClick={() => loadProposal(prop)} className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded hover:bg-blue-600 hover:text-white transition font-bold">Yükle</button>
                                             </div>
                                         </div>
                                     ))}
@@ -595,6 +614,9 @@ const firebaseConfig = {
 
                                                 <button onClick={sendToWhatsapp} disabled={!customerInfo.phone} className={`p-2 rounded font-bold flex items-center justify-center gap-2 transition ${customerInfo.phone ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}><Phone size={16} /> WhatsApp</button>
                                                 <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-500 text-white p-2 rounded font-bold flex items-center justify-center gap-2 transition"><Printer size={16} /> PDF İndir</button>
+                                                
+                                                {/* SEPETİ TEMİZLE (AYARLAR İÇİNDE) */}
+                                                <button onClick={clearCart} className="bg-red-600 hover:bg-red-500 text-white p-2 rounded font-bold flex items-center justify-center gap-2 transition"><Trash2 size={16} /> Temizle</button>
                                             </div>
                                         </div>
 
@@ -688,7 +710,11 @@ const firebaseConfig = {
                                     <div className="relative w-full max-w-md bg-white dark:bg-gray-800 shadow-2xl flex flex-col h-full animate-in slide-in-from-right duration-300">
                                         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
                                             <h2 className="text-lg font-bold flex items-center gap-2 text-gray-800 dark:text-white">Sepetim ({cart.length})</h2>
-                                            <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full dark:text-gray-300"><X size={20} /></button>
+                                            <div className="flex items-center gap-2">
+                                                {/* SEPETİ TEMİZLE BUTONU (YAN MENU) */}
+                                                <button onClick={clearCart} className="text-red-500 hover:text-red-700 p-2"><Trash2 size={20}/></button>
+                                                <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full dark:text-gray-300"><X size={20} /></button>
+                                            </div>
                                         </div>
                                         <div className="flex-1 overflow-y-auto p-4 space-y-3">
                                             {cart.map((item, idx) => (
