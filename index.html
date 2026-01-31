@@ -2,8 +2,13 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Promar Sipariş & Teklif Platformu</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Promar Sipariş & Teklif Platformu (Cloud)</title>
+    
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2983/2983707.png">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -26,92 +31,57 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
-    <style>
-        /* PDF ve Yazdırma Ayarları */
-        @media print {
-            /* Tarayıcıya zorla Light Mode uygulat */
-            :root { color-scheme: light; }
-            
-            /* Dark class'ı olsa bile arka planı beyaz, yazıları siyah yap */
-            html, body, .dark, body.dark, #root {
-                background-color: #ffffff !important;
-                color: #000000 !important;
-                background-image: none !important;
-            }
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
-            /* Ekranda görünmesi gereken ama baskıda gizlenecekler */
+    <style>
+        body { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+        @media print {
+            :root { color-scheme: light; }
+            html, body, .dark, body.dark, #root { background-color: #ffffff !important; color: #000000 !important; }
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            
-            @page {
-                size: A4;
-                margin: 10mm;
-            }
-            
-            /* Tablo Satır Bölünmelerini Engelleme */
+            @page { size: A4; margin: 10mm; }
             tr { page-break-inside: avoid; }
-            thead { display: table-header-group; }
-            tfoot { display: table-footer-group; }
-            
-            /* Antetli Kağıt Havası - Kapsayıcı Sıfırlama */
-            .proposal-container {
-                box-shadow: none !important;
-                border: none !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                background-color: white !important;
-                overflow: visible !important; /* Baskıda scroll olmasın */
-            }
-
-            /* Tablo Başlıkları ve Satırlar için Renk Düzeltmesi */
-            table, th, td {
-                border-color: #e5e7eb !important; /* Gri ton */
-                color: black !important;
-            }
-            
-            thead {
-                background-color: #f3f4f6 !important; /* Açık gri */
-                -webkit-print-color-adjust: exact !important; 
-                print-color-adjust: exact !important;
-            }
-            
-            /* Yazdırırken taşmayı engelle */
-            .overflow-x-auto {
-                overflow-x: visible !important;
-            }
-
-            /* Yazı renklerini siyaha zorla (Tailwind dark mode override) */
-            .text-gray-100, .text-gray-200, .text-gray-300, .text-gray-400, .text-white, .dark\:text-white {
-                color: #000000 !important;
-            }
+            .overflow-x-auto { overflow-x: visible !important; }
         }
-
-        /* Normal Görünüm Scrollbar */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
-        
-        .light ::-webkit-scrollbar-track { background: #f1f1f1; }
-        .light ::-webkit-scrollbar-thumb { background: #888; }
-
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-300 select-none">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
+        // --- FIREBASE AYARLARI (BURAYI KENDİ PROJENİZE GÖRE DOLDURUN) ---
+        // Firebase Console -> Project Settings -> General -> Your Apps kısmından alabilirsiniz.
+const firebaseConfig = {
+  apiKey: "AIzaSyDsgmQcL0FIKdZMVO1kljOud0AhiXzMQbQ",
+  authDomain: "pricebook-2442c.firebaseapp.com",
+  projectId: "pricebook-2442c",
+  storageBucket: "pricebook-2442c.firebasestorage.app",
+  messagingSenderId: "460551609784",
+  appId: "1:460551609784:web:07030049d6e54c63cec34d"
+};
+
+
+        // Firebase Başlatma (Hata önleyici kontrol ile)
+        let db = null;
+        try {
+            if (firebase.apps.length === 0) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.firestore();
+        } catch (e) {
+            console.warn("Firebase başlatılamadı. Config ayarlarını kontrol edin.", e);
+        }
+
         // --- İKONLAR ---
         const IconWrapper = ({ children, size = 24, className = "", onClick }) => (
-            <svg onClick={onClick} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={{cursor: onClick ? 'pointer' : 'inherit'}}>
-                {children}
-            </svg>
+            <svg onClick={onClick} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={{cursor: onClick ? 'pointer' : 'inherit'}}>{children}</svg>
         );
         const ShoppingCart = (props) => <IconWrapper {...props}><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></IconWrapper>;
         const FileText = (props) => <IconWrapper {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></IconWrapper>;
@@ -129,19 +99,19 @@
         const FileSpreadsheet = (props) => <IconWrapper {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></IconWrapper>;
         const Database = (props) => <IconWrapper {...props}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></IconWrapper>;
         const LogOut = (props) => <IconWrapper {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></IconWrapper>;
-        const Phone = (props) => <IconWrapper {...props}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></IconWrapper>;
         const Lock = (props) => <IconWrapper {...props}><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></IconWrapper>;
         const ChevronRight = (props) => <IconWrapper {...props}><polyline points="9 18 15 12 9 6" /></IconWrapper>;
+        const Cloud = (props) => <IconWrapper {...props}><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></IconWrapper>;
+        const Save = (props) => <IconWrapper {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></IconWrapper>;
+        const Clock = (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></IconWrapper>;
 
-        // --- ANA UYGULAMA ---
         function DealerPlatform() {
-            // --- STATE YÖNETİMİ ---
             const [dealers, setDealers] = useState([]);
             const [brands, setBrands] = useState([]);
             const [products, setProducts] = useState([]);
             const [isDataLoaded, setIsDataLoaded] = useState(false);
+            const [isLoadingData, setIsLoadingData] = useState(false); // Veri yükleniyor animasyonu
 
-            // DEFAULT DARK MODE
             const [darkMode, setDarkMode] = useState(true);
             const [selectedDealer, setSelectedDealer] = useState(null);
             const [activeBrand, setActiveBrand] = useState(null);
@@ -154,10 +124,14 @@
             
             const [loginModal, setLoginModal] = useState({ open: false, dealer: null });
             const [passwordInput, setPasswordInput] = useState('');
-            
             const [currency, setCurrency] = useState('EUR');
             const [exchangeRate, setExchangeRate] = useState(38.50);
             const [isLoadingRate, setIsLoadingRate] = useState(false);
+
+            // Firebase Modal States
+            const [showHistory, setShowHistory] = useState(false);
+            const [proposalHistory, setProposalHistory] = useState([]);
+            const [isSaving, setIsSaving] = useState(false);
 
             useEffect(() => {
                 if (darkMode) {
@@ -169,34 +143,71 @@
                 }
             }, [darkMode]);
 
+            // --- OTOMATİK VERİ YÜKLEME (AUTO LOAD) ---
             useEffect(() => {
-                const storedDealers = localStorage.getItem('app_dealers');
-                const storedBrands = localStorage.getItem('app_brands');
-                const storedProducts = localStorage.getItem('app_products');
-
-                if (storedDealers && storedBrands && storedProducts) {
-                    try {
-                        setDealers(JSON.parse(storedDealers));
-                        setBrands(JSON.parse(storedBrands));
-                        setProducts(JSON.parse(storedProducts));
-                        setIsDataLoaded(true);
-                    } catch (e) {
-                        clearData();
+                const autoLoadExcel = async () => {
+                    // Önce local storage kontrol et
+                    const storedDealers = localStorage.getItem('app_dealers');
+                    if (storedDealers) {
+                        try {
+                            setDealers(JSON.parse(storedDealers));
+                            setBrands(JSON.parse(localStorage.getItem('app_brands')));
+                            setProducts(JSON.parse(localStorage.getItem('app_products')));
+                            setIsDataLoaded(true);
+                            return; 
+                        } catch (e) { console.log("Cache hatası, webden çekiliyor..."); }
                     }
-                }
+
+                    // Cache yoksa veya bozuksa GitHub/Localden çek
+                    setIsLoadingData(true);
+                    try {
+                        // "data.xlsx" dosyasını aynı dizinde ara
+                        const response = await fetch('data.xlsx'); 
+                        if (!response.ok) throw new Error("Dosya bulunamadı");
+                        
+                        const arrayBuffer = await response.arrayBuffer();
+                        processExcel(arrayBuffer);
+                    } catch (error) {
+                        console.log("Otomatik yükleme yapılamadı, manuel bekleniyor.", error);
+                    } finally {
+                        setIsLoadingData(false);
+                    }
+                };
+                autoLoadExcel();
             }, []);
+
+            const processExcel = (buffer) => {
+                const wb = XLSX.read(buffer, { type: 'array' });
+                const wsDealers = wb.Sheets[wb.SheetNames[0]];
+                const wsBrands = wb.Sheets[wb.SheetNames[1]];
+                const dataDealers = XLSX.utils.sheet_to_json(wsDealers);
+                const dataBrands = XLSX.utils.sheet_to_json(wsBrands);
+
+                let allProducts = [];
+                for(let i = 2; i < wb.SheetNames.length; i++) {
+                    const ws = wb.Sheets[wb.SheetNames[i]];
+                    const data = XLSX.utils.sheet_to_json(ws);
+                    allProducts = [...allProducts, ...data];
+                }
+
+                setDealers(dataDealers);
+                setBrands(dataBrands);
+                setProducts(allProducts);
+                setIsDataLoaded(true);
+
+                try {
+                    localStorage.setItem('app_dealers', JSON.stringify(dataDealers));
+                    localStorage.setItem('app_brands', JSON.stringify(dataBrands));
+                    localStorage.setItem('app_products', JSON.stringify(allProducts));
+                } catch (e) { console.log("Storage dolu"); }
+            };
 
             const clearData = () => {
                 if (confirm("Kayıtlı veriler silinecek. Onaylıyor musunuz?")) {
-                    localStorage.removeItem('app_dealers');
-                    localStorage.removeItem('app_brands');
-                    localStorage.removeItem('app_products');
+                    localStorage.clear();
                     setIsDataLoaded(false);
                     setDealers([]);
-                    setBrands([]);
-                    setProducts([]);
-                    setSelectedDealer(null);
-                    setCart([]);
+                    window.location.reload();
                 }
             };
 
@@ -217,60 +228,70 @@
             const handleFileUpload = (e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-
-                if (!window.XLSX) {
-                    alert("Excel modülü yükleniyor, lütfen bekleyin.");
-                    return;
-                }
-
                 const reader = new FileReader();
-                reader.onload = (evt) => {
-                    const bstr = evt.target?.result;
-                    const wb = window.XLSX.read(bstr, { type: 'binary' });
-
-                    const wsDealers = wb.Sheets[wb.SheetNames[0]];
-                    const wsBrands = wb.Sheets[wb.SheetNames[1]];
-                    
-                    const dataDealers = window.XLSX.utils.sheet_to_json(wsDealers);
-                    const dataBrands = window.XLSX.utils.sheet_to_json(wsBrands);
-
-                    let allProducts = [];
-                    for(let i = 2; i < wb.SheetNames.length; i++) {
-                        const ws = wb.Sheets[wb.SheetNames[i]];
-                        const data = window.XLSX.utils.sheet_to_json(ws);
-                        allProducts = [...allProducts, ...data];
-                    }
-
-                    setDealers(dataDealers);
-                    setBrands(dataBrands);
-                    setProducts(allProducts);
-                    setIsDataLoaded(true);
-
-                    try {
-                        localStorage.setItem('app_dealers', JSON.stringify(dataDealers));
-                        localStorage.setItem('app_brands', JSON.stringify(dataBrands));
-                        localStorage.setItem('app_products', JSON.stringify(allProducts));
-                        alert("Veriler başarıyla yüklendi!");
-                    } catch (error) {
-                        alert("Veri boyutu çok yüksek, önbelleğe alınamadı ama kullanabilirsiniz.");
-                    }
-                };
-                reader.readAsBinaryString(file);
+                reader.onload = (evt) => processExcel(evt.target.result);
+                reader.readAsArrayBuffer(file);
             };
 
+            // --- FIREBASE İŞLEMLERİ ---
+            const saveProposalToFirebase = async () => {
+                if (!db) { alert("Firebase bağlantısı yok! Lütfen config ayarlarını yapın."); return; }
+                if (!customerInfo.name) { alert("Lütfen müşteri adı giriniz."); return; }
+                
+                setIsSaving(true);
+                try {
+                    await db.collection("proposals").add({
+                        dealerId: selectedDealer.id,
+                        dealerName: selectedDealer.name,
+                        customer: customerInfo,
+                        cart: cart,
+                        totalAmount: calculateTotal().finalTotal,
+                        currency: currency,
+                        date: new Date().toISOString(),
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    alert("Teklif buluta başarıyla kaydedildi!");
+                } catch (error) {
+                    console.error("Hata:", error);
+                    alert("Kaydedilirken hata oluştu: " + error.message);
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            const fetchProposalHistory = async () => {
+                if (!db) return;
+                if (!selectedDealer) return;
+
+                const snapshot = await db.collection("proposals")
+                    .where("dealerId", "==", selectedDealer.id)
+                    .orderBy("createdAt", "desc")
+                    .limit(20)
+                    .get();
+
+                const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setProposalHistory(list);
+                setShowHistory(true);
+            };
+
+            const loadProposal = (proposal) => {
+                if(confirm("Mevcut sepet silinecek ve seçilen teklif yüklenecek. Onaylıyor musunuz?")) {
+                    setCustomerInfo(proposal.customer);
+                    setCart(proposal.cart);
+                    setShowHistory(false);
+                    setViewMode('proposal');
+                }
+            };
+
+            // ... Diğer yardımcı fonksiyonlar (Kur çekme, fiyat formatlama vs)
             const fetchTCMBRate = async () => {
                 setIsLoadingRate(true);
                 try {
                     const response = await fetch('https://api.frankfurter.app/latest?from=EUR&to=TRY');
                     const data = await response.json();
                     if (data?.rates?.TRY) setExchangeRate(data.rates.TRY);
-                } catch (error) {
-                    console.error("Kur hatası:", error);
-                } finally {
-                    setIsLoadingRate(false);
-                }
+                } catch (error) { console.error("Kur hatası:", error); } finally { setIsLoadingRate(false); }
             };
-
             useEffect(() => { fetchTCMBRate(); }, []);
 
             const formatPrice = (priceEur) => {
@@ -279,14 +300,12 @@
             };
 
             const calculateTotal = () => {
-                const subTotal = cart.reduce((acc, item) => {
-                    const itemTotal = item.price * item.qty;
-                    return acc + (itemTotal * (1 - (item.discount || 0) / 100));
-                }, 0);
+                const subTotal = cart.reduce((acc, item) => acc + (item.price * item.qty * (1 - (item.discount || 0) / 100)), 0);
                 const kdvAmount = subTotal * 0.20;
                 return { subTotal, kdvAmount, finalTotal: subTotal + kdvAmount };
             };
 
+            // Yetki ve Filtreleme
             const visibleBrands = useMemo(() => {
                 if (!selectedDealer) return [];
                 if (!selectedDealer.allowedBrands) return brands;
@@ -325,30 +344,21 @@
             };
 
             const removeFromCart = (partNo) => setCart(prev => prev.filter(item => item.partNo !== partNo));
-            const updateQty = (partNo, delta) => {
-                setCart(prev => prev.map(item => item.partNo === partNo ? { ...item, qty: Math.max(1, item.qty + delta) } : item));
-            };
-            const updateItemDiscount = (partNo, discount) => {
-                setCart(prev => prev.map(item => item.partNo === partNo ? { ...item, discount: Math.min(100, Math.max(0, discount)) } : item));
-            };
+            const updateQty = (partNo, delta) => setCart(prev => prev.map(item => item.partNo === partNo ? { ...item, qty: Math.max(1, item.qty + delta) } : item));
+            const updateItemDiscount = (partNo, discount) => setCart(prev => prev.map(item => item.partNo === partNo ? { ...item, discount: Math.min(100, Math.max(0, discount)) } : item));
 
             const handleDealerClick = (dealer) => {
                 if (dealer.password && dealer.password.toString().trim() !== '') {
                     setLoginModal({ open: true, dealer });
                     setPasswordInput('');
-                } else {
-                    setSelectedDealer(dealer);
-                }
+                } else { setSelectedDealer(dealer); }
             };
-
             const handleLoginSubmit = (e) => {
                 e.preventDefault();
                 if (loginModal.dealer && loginModal.dealer.password.toString() === passwordInput) {
                     setSelectedDealer(loginModal.dealer);
                     setLoginModal({ open: false, dealer: null });
-                } else {
-                    alert("Hatalı Parola!");
-                }
+                } else { alert("Hatalı Parola!"); }
             };
 
             const sendToWhatsapp = () => {
@@ -365,25 +375,52 @@
             return (
                 <div className="min-h-screen bg-gray-50 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300 font-sans">
                     
+                    {/* YÜKLENİYOR EKRANI */}
+                    {isLoadingData && (
+                        <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col items-center justify-center text-white">
+                            <RefreshCw className="w-12 h-12 animate-spin mb-4 text-blue-500" />
+                            <h2 className="text-xl font-bold">Veriler Buluttan Çekiliyor...</h2>
+                            <p className="text-sm text-gray-400">data.xlsx dosyası yükleniyor</p>
+                        </div>
+                    )}
+
+                    {/* HISTORY MODAL */}
+                    {showHistory && (
+                        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl w-full max-w-2xl border dark:border-gray-700 h-3/4 flex flex-col">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-xl font-bold dark:text-white flex items-center gap-2"><Clock /> Geçmiş Teklifler</h3>
+                                    <button onClick={() => setShowHistory(false)}><X /></button>
+                                </div>
+                                <div className="flex-1 overflow-y-auto space-y-3">
+                                    {proposalHistory.length === 0 ? <p className="text-center text-gray-500 mt-10">Kayıtlı teklif bulunamadı.</p> : 
+                                     proposalHistory.map((prop, idx) => (
+                                        <div key={idx} onClick={() => loadProposal(prop)} className="p-4 border dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer flex justify-between items-center group">
+                                            <div>
+                                                <p className="font-bold">{prop.customer?.name || 'İsimsiz Müşteri'}</p>
+                                                <p className="text-xs text-gray-500">{new Date(prop.date).toLocaleString('tr-TR')}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-bold text-blue-600">{new Intl.NumberFormat('tr-TR', { style: 'currency', currency: prop.currency || 'EUR' }).format(prop.totalAmount)}</p>
+                                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded group-hover:bg-blue-600 group-hover:text-white transition">Yükle</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* LOGIN MODAL */}
                     {loginModal.open && (
                         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                            <form onSubmit={handleLoginSubmit} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl w-full max-w-sm border dark:border-gray-700 animate-in fade-in zoom-in duration-200">
+                            <form onSubmit={handleLoginSubmit} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl w-full max-w-sm border dark:border-gray-700">
                                 <h3 className="text-xl font-bold mb-1 dark:text-white">{loginModal.dealer?.name}</h3>
                                 <p className="text-sm text-gray-500 mb-4">Lütfen bayi giriş parolasını giriniz.</p>
-                                
-                                <input 
-                                    autoFocus
-                                    type="password" 
-                                    className="w-full p-3 border rounded-lg mb-4 bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 ring-blue-500 outline-none"
-                                    placeholder="Parola"
-                                    value={passwordInput}
-                                    onChange={e => setPasswordInput(e.target.value)}
-                                />
-                                
+                                <input autoFocus type="password" className="w-full p-3 border rounded-lg mb-4 bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 ring-blue-500 outline-none" placeholder="Parola" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} />
                                 <div className="flex gap-2">
-                                    <button type="button" onClick={() => setLoginModal({open:false, dealer:null})} className="flex-1 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-medium">İptal</button>
-                                    <button type="submit" className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold">Giriş Yap</button>
+                                    <button type="button" onClick={() => setLoginModal({open:false, dealer:null})} className="flex-1 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 dark:text-white">İptal</button>
+                                    <button type="submit" className="flex-1 py-2 rounded-lg bg-blue-600 text-white font-bold">Giriş Yap</button>
                                 </div>
                             </form>
                         </div>
@@ -392,12 +429,12 @@
                     {!isDataLoaded ? (
                         <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100 dark:bg-gray-900">
                             <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl max-w-lg w-full text-center border border-gray-200 dark:border-gray-700">
-                                <div className="bg-green-100 dark:bg-green-900 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                                    <FileSpreadsheet className="w-10 h-10 text-green-600 dark:text-green-300" />
+                                <div className="bg-blue-100 dark:bg-blue-900 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                                    <Cloud className="w-10 h-10 text-blue-600 dark:text-blue-300" />
                                 </div>
-                                <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Kurulum / Veri Yükleme</h1>
+                                <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Otomatik Yükleme Başarısız</h1>
                                 <p className="text-gray-500 dark:text-gray-400 mb-4">
-                                    Lütfen güncel <strong>Bayi_Verileri.xlsx</strong> dosyasını yükleyin.
+                                    'data.xlsx' dosyası bulunamadı. Manuel yükleyebilirsiniz.
                                 </p>
                                 <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition">
                                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -408,36 +445,21 @@
                                 </label>
                             </div>
                         </div>
-                    ) : 
-                    
-                    !selectedDealer ? (
+                    ) : !selectedDealer ? (
                         <div className="flex flex-col items-center justify-center min-h-screen p-4 animate-in fade-in duration-500">
                             <div className="max-w-6xl w-full">
                                 <div className="flex justify-between items-center mb-8">
-                                    <button onClick={clearData} className="text-sm text-red-500 hover:text-red-700 flex items-center gap-1 bg-white dark:bg-gray-800 px-3 py-2 rounded shadow">
-                                        <Database size={14} /> Veri Sıfırla
-                                    </button>
-                                    <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full bg-gray-200 dark:bg-gray-700">
-                                        {darkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-gray-600" />}
-                                    </button>
+                                    <button onClick={clearData} className="text-sm text-red-500 hover:text-red-700 flex items-center gap-1 bg-white dark:bg-gray-800 px-3 py-2 rounded shadow"><Database size={14} /> Veri Sıfırla</button>
+                                    <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full bg-gray-200 dark:bg-gray-700">{darkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-gray-600" />}</button>
                                 </div>
-                                
                                 <h1 className="text-3xl font-bold text-center text-gray-800 dark:text-white mb-2">Hoşgeldiniz</h1>
                                 <p className="text-center text-gray-500 dark:text-gray-400 mb-8">Giriş yapacağınız bayiyi seçiniz.</p>
-                                
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     {dealers.map((dealer, idx) => (
-                                        <button 
-                                            key={idx}
-                                            onClick={() => handleDealerClick(dealer)}
-                                            className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg hover:shadow-2xl hover:-translate-y-1 transition border border-gray-200 dark:border-gray-700 flex flex-col items-center text-center group relative overflow-hidden"
-                                        >
+                                        <button key={idx} onClick={() => handleDealerClick(dealer)} className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg hover:shadow-2xl hover:-translate-y-1 transition border border-gray-200 dark:border-gray-700 flex flex-col items-center text-center group relative overflow-hidden">
                                             {dealer.password && <div className="absolute top-3 right-3 text-gray-300 dark:text-gray-600"><Lock size={16} /></div>}
                                             <div className="w-full h-32 mb-4 flex items-center justify-center bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden p-2">
-                                                {dealer.logo && (dealer.logo.startsWith('http') || dealer.logo.startsWith('data:')) ? 
-                                                    <img src={processImageUrl(dealer.logo)} alt={dealer.name} className="w-full h-full object-contain" onError={(e)=>{e.target.style.display='none';e.target.nextElementSibling?.classList.remove('hidden');}} /> : 
-                                                    <span className="text-6xl">{dealer.logo || '🏢'}</span>
-                                                }
+                                                {dealer.logo && (dealer.logo.startsWith('http') || dealer.logo.startsWith('data:')) ? <img src={processImageUrl(dealer.logo)} alt={dealer.name} className="w-full h-full object-contain" onError={(e)=>{e.target.style.display='none';e.target.nextElementSibling?.classList.remove('hidden');}} /> : <span className="text-6xl">{dealer.logo || '🏢'}</span>}
                                                 <span className="hidden text-6xl absolute">🏢</span>
                                             </div>
                                             <h3 className="text-xl font-bold text-gray-800 dark:text-white">{dealer.name}</h3>
@@ -451,7 +473,6 @@
                     ) : (
                         <div className="flex flex-col h-screen overflow-hidden animate-in slide-in-from-right duration-300">
                             
-                            {/* HEADER */}
                             <header className="bg-white dark:bg-gray-800 shadow-sm z-30 px-4 py-3 shrink-0 border-b dark:border-gray-700 no-print">
                                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-4 items-center justify-between">
                                     <div className="flex items-center gap-3 w-full md:w-auto">
@@ -460,7 +481,11 @@
                                         ) : (activeBrand || searchQuery) ? (
                                             <button onClick={() => { setActiveBrand(null); setActiveCategory(null); setSearchQuery(''); }} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"><ArrowLeft className="w-6 h-6" /></button>
                                         ) : (
-                                            <button onClick={() => setSelectedDealer(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-xs flex flex-col items-center text-gray-400"><LogOut size={16} /> <span className="text-[10px]">Çıkış</span></button>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setSelectedDealer(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-xs flex flex-col items-center text-gray-400"><LogOut size={16} /> <span className="text-[10px]">Çıkış</span></button>
+                                                {/* GEÇMİŞ BUTONU */}
+                                                <button onClick={fetchProposalHistory} className="p-2 hover:bg-blue-100 dark:hover:bg-blue-900 rounded-full text-xs flex flex-col items-center text-blue-600 dark:text-blue-400 font-bold"><Clock size={16} /> <span className="text-[10px]">Geçmiş</span></button>
+                                            </div>
                                         )}
                                         <div>
                                             <h1 className="text-lg font-bold leading-tight">{viewMode === 'proposal' ? 'Teklif Hazırlama' : (searchQuery ? 'Arama Sonuçları' : (activeBrand ? brands.find(b => b.id === activeBrand)?.name : selectedDealer.name))}</h1>
@@ -491,7 +516,6 @@
                                 </div>
                             </header>
 
-                            {/* KATALOG */}
                             {viewMode === 'catalog' ? (
                                 <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
                                     <div className="max-w-7xl mx-auto">
@@ -554,25 +578,28 @@
                                     </div>
                                 </div>
                             ) : (
-                                // --- TEKLİF ÖNİZLEME MODU (ANTETLİ KAĞIT STİLİ) ---
                                 <div className="flex-1 overflow-y-auto bg-gray-100 dark:bg-gray-900 p-4 print:p-0 print:bg-white flex justify-center">
                                     <div className="proposal-container bg-white w-full max-w-4xl shadow-xl rounded-xl overflow-hidden print:shadow-none print:w-full flex flex-col h-fit">
                                         
-                                        {/* AYARLAR PANELİ (YAZDIRIRKEN GİZLENİR) */}
                                         <div className="bg-gray-800 text-white p-6 no-print">
                                             <h2 className="text-xl font-bold flex items-center gap-2 mb-4"><Settings size={20} /> Teklif Ayarları</h2>
                                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                                 <input type="text" placeholder="Müşteri Adı *" className="p-2 rounded text-gray-900 text-sm" value={customerInfo.name} onChange={e => setCustomerInfo({...customerInfo, name: e.target.value})} />
                                                 <input type="text" placeholder="Telefon (5XX...)" className="p-2 rounded text-gray-900 text-sm" value={customerInfo.phone} onChange={e => setCustomerInfo({...customerInfo, phone: e.target.value})} />
+                                                
+                                                {/* KAYDET BUTONU */}
+                                                <button onClick={saveProposalToFirebase} disabled={isSaving} className="bg-green-600 hover:bg-green-500 text-white p-2 rounded font-bold flex items-center justify-center gap-2 transition disabled:opacity-50">
+                                                    {isSaving ? <RefreshCw className="animate-spin" size={16} /> : <Save size={16} />} 
+                                                    {isSaving ? 'Kaydediliyor...' : 'Buluta Kaydet'}
+                                                </button>
+
                                                 <button onClick={sendToWhatsapp} disabled={!customerInfo.phone} className={`p-2 rounded font-bold flex items-center justify-center gap-2 transition ${customerInfo.phone ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}><Phone size={16} /> WhatsApp</button>
-                                                <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-500 text-white p-2 rounded font-bold flex items-center justify-center gap-2 transition"><Printer size={16} /> PDF İndir / Yazdır</button>
+                                                <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-500 text-white p-2 rounded font-bold flex items-center justify-center gap-2 transition"><Printer size={16} /> PDF İndir</button>
                                             </div>
                                         </div>
 
-                                        {/* BASILACAK ALAN */}
                                         <div className="p-10 print:p-0 print:m-0 text-gray-900 print:w-full">
                                             
-                                            {/* ANTET / HEADER */}
                                             <div className="flex justify-between items-end border-b-2 border-gray-800 pb-4 mb-6 print:mb-4">
                                                 <div className="flex items-center gap-4">
                                                     <div className="h-24 w-40 flex items-center justify-start overflow-hidden">
@@ -593,12 +620,10 @@
                                                 </div>
                                             </div>
 
-                                            {/* MOBİL UYARISI - SADECE EKRANDA GÖRÜNÜR */}
                                             <div className="md:hidden no-print text-xs text-gray-400 text-right mb-1 flex items-center justify-end gap-1">
                                                 <span>Tabloyu kaydırınız</span> <ChevronRight size={12}/>
                                             </div>
 
-                                            {/* ÜRÜN TABLOSU - WRAPPER İLE SCROLLABLE */}
                                             <div className="overflow-x-auto">
                                                 <table className="w-full text-sm mb-6 table-auto border-collapse min-w-[600px] md:min-w-0">
                                                     <thead className="bg-gray-100 border-b-2 border-gray-300 print:bg-gray-200">
@@ -641,7 +666,6 @@
                                                 </table>
                                             </div>
 
-                                            {/* TOPLAM ALANI (SAYFA SONUNDA BÖLÜNMEZ) */}
                                             <div className="flex justify-end break-inside-avoid page-break-inside-avoid">
                                                 <div className="w-72 space-y-2 border-t pt-4">
                                                     <div className="flex justify-between text-gray-600 border-b border-dashed pb-1"><span>Ara Toplam:</span><span>{formatPrice(subTotal)}</span></div>
@@ -650,7 +674,6 @@
                                                 </div>
                                             </div>
                                             
-                                            {/* ALT BİLGİ */}
                                             <div className="mt-8 pt-4 border-t text-xs text-center text-gray-400 print:fixed print:bottom-4 print:left-0 print:w-full">
                                                 Bu teklif <strong>Promar Sipariş Sistemi</strong> ile oluşturulmuştur.
                                             </div>
